@@ -45,6 +45,11 @@ impl MenuNode {
 
 /// User-defined names in parameterized menus are data, not message keys.
 pub fn display_item_label<'a>(id: &str, params: &Value, label: &'a str) -> &'a str {
+    // Language commands store the endonym; resolve at paint time so a no-craft-fonts build shows
+    // Latin glosses instead of empty boxes for Chinese / Japanese entries.
+    if let Some(language) = crate::menus::language_from_command(id) {
+        return language.menu_name();
+    }
     if matches!(id, "metadata.applyPreset" | "album.addPhotos" | "label.applySet")
         || (id == "app.export" && params.get("preset").is_some())
         || (id == "app.openLibrary" && params.get("path").is_some())

@@ -128,6 +128,25 @@ language_table! {
     Uk, "uk", "Українська", "Cyrl", include_str!("../locales/uk.json");
 }
 
+impl Locale {
+    /// Label for Language menus and Settings. Prefers the endonym ([`Self::name`]); when the
+    /// build has no craft-fonts face for a CJK script, returns a Latin gloss so the entry is
+    /// readable as boxes instead of looking like a missing language.
+    pub fn menu_name(self) -> &'static str {
+        if lightcraft_engine::fonts::is_cjk_script(self.script())
+            && !lightcraft_engine::CRAFT_FONTS.iter().any(|font| font.serves(self.script()))
+        {
+            return match self {
+                Self::ZhHans => "Chinese (Simplified)",
+                Self::ZhHant => "Chinese (Traditional)",
+                Self::Ja => "Japanese",
+                _ => self.name(),
+            };
+        }
+        self.name()
+    }
+}
+
 // The settings file stores the BCP-47 code (`"zh-hans"`), never the Rust variant name, so a
 // language can be renamed in code without invalidating anyone's settings.
 impl Serialize for Locale {
@@ -431,6 +450,23 @@ pub fn rules_label(rules: &lightcraft_catalog::RuleSet, catalog: &lightcraft_cat
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn menu_name_is_readable_without_cjk_fonts() {
+        // With craft-fonts, endonyms stay; without them, CJK entries must not be empty boxes in
+        // the Language menu — Latin glosses keep the switch discoverable.
+        for language in [Locale::ZhHans, Locale::ZhHant, Locale::Ja] {
+            let label = language.menu_name();
+            assert!(!label.is_empty(), "{language:?}");
+            if !lightcraft_engine::CRAFT_FONTS.iter().any(|font| font.serves(language.script())) {
+                assert!(label.is_ascii(), "{language:?} falls back to Latin when craft-fonts is missing: {label}");
+            } else {
+                assert_eq!(label, language.name(), "{language:?} keeps its endonym when craft-fonts is present");
+            }
+        }
+        assert_eq!(Locale::En.menu_name(), "English");
+        assert_eq!(Locale::De.menu_name(), "Deutsch");
+    }
 
     #[test]
     fn every_language_has_a_catalog_covering_the_source() {
